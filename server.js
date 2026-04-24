@@ -71,5 +71,5 @@ app.get("/api/members", async (req, res) => {
 });
 
 // ── Démarrage ─────────────────────────────────────
-app.listen(process.env.PORT || 4223);
+app.listen(process.env.PORT || 3000);
 client.login(process.env.BOT_TOKEN);
