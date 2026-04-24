@@ -6,7 +6,7 @@ const cors = require("cors");
 const app = express();
 app.use(
   cors({
-    origin: "https://nexushubbyank-six.vercel.app",
+    origin: "*",
   }),
 );
 
