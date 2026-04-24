@@ -4,7 +4,11 @@ const express = require("express");
 const cors = require("cors");
 
 const app = express();
-app.use(cors());
+app.use(
+  cors({
+    origin: "https://nexushubbyank-six.vercel.app",
+  }),
+);
 
 const GUILD_ID = process.env.GUILD_ID;
 
@@ -48,16 +52,14 @@ app.get("/api/members", async (req, res) => {
     const members = await guild.members.fetch({ withPresences: true });
 
     const list = members
-      .filter(m => !m.user.bot)
-      .map(m => ({
+      .filter((m) => !m.user.bot)
+      .map((m) => ({
         id: m.user.id,
         username: m.user.username,
         avatar: m.user.avatar,
         status: m.presence?.status ?? "offline",
         topRole:
-          m.roles.highest.name !== "@everyone"
-            ? m.roles.highest.name
-            : null,
+          m.roles.highest.name !== "@everyone" ? m.roles.highest.name : null,
       }))
       .slice(0, 20);
 
@@ -69,5 +71,5 @@ app.get("/api/members", async (req, res) => {
 });
 
 // ── Démarrage ─────────────────────────────────────
-app.listen(3000);
+app.listen(process.env.PORT || 4223);
 client.login(process.env.BOT_TOKEN);
