@@ -56,7 +56,7 @@ app.get("/api/members", async (req, res) => {
 
 client.once("ready", () => {
   console.log(`✅ Bot connecté : ${client.user.tag}`);
-  const PORT = process.env.PORT || 3000;
+  const PORT = process.env.PORT || 8080;
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`📡 API lancée sur le port ${PORT}`);
   });
