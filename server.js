@@ -50,6 +50,7 @@ app.get("/api/members", async (req, res) => {
       .slice(0, 20);
     res.json(list);
   } catch (err) {
+    console.error("ERREUR MEMBERS:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
