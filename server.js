@@ -37,7 +37,7 @@ app.get("/api/members", async (req, res) => {
   try {
     const guild = await client.guilds.fetch(GUILD_ID);
     const members = await guild.members.fetch({ withPresences: true });
-    const list = members
+    const list = [...members.values()]
       .filter((m) => !m.user.bot)
       .map((m) => ({
         id: m.user.id,
