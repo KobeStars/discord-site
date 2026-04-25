@@ -13,7 +13,15 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(cors({ origin: "*" }));
+const GUILD_ID = process.env.GUILD_ID;
+
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildPresences,
+  ],
+});
 
 app.get("/api/server", async (req, res) => {
   try {
@@ -28,6 +36,7 @@ app.get("/api/server", async (req, res) => {
       channels: guild.channels.cache.size,
     });
   } catch (err) {
+    console.error("Erreur /api/server :", err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -49,14 +58,14 @@ app.get("/api/members", async (req, res) => {
       .slice(0, 20);
     res.json(list);
   } catch (err) {
-    console.error("ERREUR MEMBERS:", err.message);
+    console.error("Erreur /api/members :", err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
 client.once("ready", () => {
   console.log(`✅ Bot connecté : ${client.user.tag}`);
-  const PORT = process.env.PORT || 8080;
+  const PORT = process.env.PORT || 3000;
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`📡 API lancée sur le port ${PORT}`);
   });
