@@ -4,17 +4,16 @@ const express = require("express");
 const cors = require("cors");
 
 const app = express();
-app.use(cors({ origin: "*" }));
 
-const GUILD_ID = process.env.GUILD_ID;
-
-const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMembers,
-    GatewayIntentBits.GuildPresences,
-  ],
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.header("Access-Control-Allow-Headers", "*");
+  if (req.method === "OPTIONS") return res.sendStatus(200);
+  next();
 });
+
+app.use(cors({ origin: "*" }));
 
 app.get("/api/server", async (req, res) => {
   try {
