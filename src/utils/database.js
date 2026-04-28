@@ -1,162 +1,184 @@
-const Database = require('better-sqlite3');
+// Base de données JSON — aucune compilation requise, fonctionne sur Windows et Railway
 const path = require('path');
+const fs = require('fs');
 
-const db = new Database(path.join(__dirname, '../data/bot.db'));
+const DATA_FILE = path.join(__dirname, '../data/bot_data.json');
 
-// Initialisation des tables
-db.exec(`
-  CREATE TABLE IF NOT EXISTS economy (
-    user_id TEXT NOT NULL,
-    guild_id TEXT NOT NULL,
-    coins INTEGER DEFAULT 0,
-    bank INTEGER DEFAULT 0,
-    last_daily TEXT DEFAULT NULL,
-    PRIMARY KEY (user_id, guild_id)
-  );
+let data = {
+  economy: {},
+  levels: {},
+  warnings: [],
+  config: {},
+  blacklist: {},
+};
 
-  CREATE TABLE IF NOT EXISTS levels (
-    user_id TEXT NOT NULL,
-    guild_id TEXT NOT NULL,
-    xp INTEGER DEFAULT 0,
-    level INTEGER DEFAULT 1,
-    last_xp TEXT DEFAULT NULL,
-    PRIMARY KEY (user_id, guild_id)
-  );
+function load() {
+  try {
+    if (fs.existsSync(DATA_FILE)) {
+      const raw = fs.readFileSync(DATA_FILE, 'utf8');
+      data = { ...data, ...JSON.parse(raw) };
+    }
+  } catch (e) {
+    console.error('Erreur chargement DB:', e.message);
+  }
+}
 
-  CREATE TABLE IF NOT EXISTS warnings (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id TEXT NOT NULL,
-    guild_id TEXT NOT NULL,
-    moderator_id TEXT NOT NULL,
-    reason TEXT NOT NULL,
-    date TEXT NOT NULL
-  );
+function save() {
+  try {
+    const dir = path.dirname(DATA_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+  } catch (e) {
+    console.error('Erreur sauvegarde DB:', e.message);
+  }
+}
 
-  CREATE TABLE IF NOT EXISTS config (
-    guild_id TEXT PRIMARY KEY,
-    log_channel TEXT DEFAULT NULL,
-    welcome_channel TEXT DEFAULT NULL,
-    welcome_message TEXT DEFAULT NULL,
-    level_channel TEXT DEFAULT NULL,
-    mute_role TEXT DEFAULT NULL
-  );
+load();
+setInterval(save, 30000);
 
-  CREATE TABLE IF NOT EXISTS blacklist (
-    user_id TEXT NOT NULL,
-    guild_id TEXT NOT NULL,
-    PRIMARY KEY (user_id, guild_id)
-  );
-`);
-
-// ─── ÉCONOMIE ───────────────────────────────────────────────────────────────
+// ─── ÉCONOMIE ────────────────────────────────────────────────────────────────
 
 function getEconomy(userId, guildId) {
-  let row = db.prepare('SELECT * FROM economy WHERE user_id = ? AND guild_id = ?').get(userId, guildId);
-  if (!row) {
-    db.prepare('INSERT INTO economy (user_id, guild_id) VALUES (?, ?)').run(userId, guildId);
-    row = db.prepare('SELECT * FROM economy WHERE user_id = ? AND guild_id = ?').get(userId, guildId);
+  const key = `${userId}_${guildId}`;
+  if (!data.economy[key]) {
+    data.economy[key] = { user_id: userId, guild_id: guildId, coins: 0, bank: 0, last_daily: null };
+    save();
   }
-  return row;
+  return data.economy[key];
 }
 
 function addCoins(userId, guildId, amount) {
-  getEconomy(userId, guildId);
-  db.prepare('UPDATE economy SET coins = coins + ? WHERE user_id = ? AND guild_id = ?').run(amount, userId, guildId);
+  const eco = getEconomy(userId, guildId);
+  eco.coins += amount;
+  save();
 }
 
 function removeCoins(userId, guildId, amount) {
-  getEconomy(userId, guildId);
-  db.prepare('UPDATE economy SET coins = MAX(0, coins - ?) WHERE user_id = ? AND guild_id = ?').run(amount, userId, guildId);
+  const eco = getEconomy(userId, guildId);
+  eco.coins = Math.max(0, eco.coins - amount);
+  save();
 }
 
 function setLastDaily(userId, guildId) {
-  db.prepare('UPDATE economy SET last_daily = ? WHERE user_id = ? AND guild_id = ?').run(new Date().toISOString(), userId, guildId);
+  const eco = getEconomy(userId, guildId);
+  eco.last_daily = new Date().toISOString();
+  save();
 }
 
 function getLeaderboardEco(guildId, limit = 10) {
-  return db.prepare('SELECT * FROM economy WHERE guild_id = ? ORDER BY (coins + bank) DESC LIMIT ?').all(guildId, limit);
+  return Object.values(data.economy)
+    .filter(e => e.guild_id === guildId)
+    .sort((a, b) => (b.coins + b.bank) - (a.coins + a.bank))
+    .slice(0, limit);
 }
 
-// ─── NIVEAUX ────────────────────────────────────────────────────────────────
+// ─── NIVEAUX ─────────────────────────────────────────────────────────────────
 
 function getLevel(userId, guildId) {
-  let row = db.prepare('SELECT * FROM levels WHERE user_id = ? AND guild_id = ?').get(userId, guildId);
-  if (!row) {
-    db.prepare('INSERT INTO levels (user_id, guild_id) VALUES (?, ?)').run(userId, guildId);
-    row = db.prepare('SELECT * FROM levels WHERE user_id = ? AND guild_id = ?').get(userId, guildId);
+  const key = `${userId}_${guildId}`;
+  if (!data.levels[key]) {
+    data.levels[key] = { user_id: userId, guild_id: guildId, xp: 0, level: 1, last_xp: null };
+    save();
   }
-  return row;
+  return data.levels[key];
 }
 
 function addXP(userId, guildId, amount) {
-  getLevel(userId, guildId);
-  db.prepare('UPDATE levels SET xp = xp + ?, last_xp = ? WHERE user_id = ? AND guild_id = ?')
-    .run(amount, new Date().toISOString(), userId, guildId);
-  return db.prepare('SELECT * FROM levels WHERE user_id = ? AND guild_id = ?').get(userId, guildId);
+  const lvl = getLevel(userId, guildId);
+  lvl.xp += amount;
+  lvl.last_xp = new Date().toISOString();
+  save();
+  return lvl;
 }
 
 function setLevel(userId, guildId, level, xp) {
-  db.prepare('UPDATE levels SET level = ?, xp = ? WHERE user_id = ? AND guild_id = ?').run(level, xp, userId, guildId);
+  const lvl = getLevel(userId, guildId);
+  lvl.level = level;
+  lvl.xp = xp;
+  save();
 }
 
 function getLeaderboardXP(guildId, limit = 10) {
-  return db.prepare('SELECT * FROM levels WHERE guild_id = ? ORDER BY (level * 1000 + xp) DESC LIMIT ?').all(guildId, limit);
+  return Object.values(data.levels)
+    .filter(l => l.guild_id === guildId)
+    .sort((a, b) => (b.level * 1000 + b.xp) - (a.level * 1000 + a.xp))
+    .slice(0, limit);
 }
 
 function xpNeeded(level) {
   return Math.floor(100 * Math.pow(1.5, level - 1));
 }
 
-// ─── AVERTISSEMENTS ─────────────────────────────────────────────────────────
+// ─── AVERTISSEMENTS ──────────────────────────────────────────────────────────
+
+let _warnId = 1;
 
 function addWarning(userId, guildId, modId, reason) {
-  db.prepare('INSERT INTO warnings (user_id, guild_id, moderator_id, reason, date) VALUES (?, ?, ?, ?, ?)')
-    .run(userId, guildId, modId, reason, new Date().toISOString());
+  data.warnings.push({
+    id: _warnId++,
+    user_id: userId,
+    guild_id: guildId,
+    moderator_id: modId,
+    reason,
+    date: new Date().toISOString(),
+  });
+  save();
 }
 
 function getWarnings(userId, guildId) {
-  return db.prepare('SELECT * FROM warnings WHERE user_id = ? AND guild_id = ? ORDER BY date DESC').all(userId, guildId);
+  return data.warnings
+    .filter(w => w.user_id === userId && w.guild_id === guildId)
+    .sort((a, b) => new Date(b.date) - new Date(a.date));
 }
 
 function clearWarnings(userId, guildId) {
-  db.prepare('DELETE FROM warnings WHERE user_id = ? AND guild_id = ?').run(userId, guildId);
+  data.warnings = data.warnings.filter(w => !(w.user_id === userId && w.guild_id === guildId));
+  save();
 }
 
-// ─── CONFIG ─────────────────────────────────────────────────────────────────
+// ─── CONFIG ──────────────────────────────────────────────────────────────────
 
 function getConfig(guildId) {
-  let row = db.prepare('SELECT * FROM config WHERE guild_id = ?').get(guildId);
-  if (!row) {
-    db.prepare('INSERT INTO config (guild_id) VALUES (?)').run(guildId);
-    row = db.prepare('SELECT * FROM config WHERE guild_id = ?').get(guildId);
+  if (!data.config[guildId]) {
+    data.config[guildId] = {
+      guild_id: guildId,
+      log_channel: null,
+      welcome_channel: null,
+      welcome_message: null,
+      level_channel: null,
+      mute_role: null,
+    };
+    save();
   }
-  return row;
+  return data.config[guildId];
 }
 
 function setConfig(guildId, key, value) {
-  getConfig(guildId);
-  db.prepare(`UPDATE config SET ${key} = ? WHERE guild_id = ?`).run(value, guildId);
+  const cfg = getConfig(guildId);
+  cfg[key] = value;
+  save();
 }
 
-// ─── BLACKLIST ──────────────────────────────────────────────────────────────
+// ─── BLACKLIST ────────────────────────────────────────────────────────────────
 
 function isBlacklisted(userId, guildId) {
-  return !!db.prepare('SELECT 1 FROM blacklist WHERE user_id = ? AND guild_id = ?').get(userId, guildId);
+  return !!data.blacklist[`${userId}_${guildId}`];
 }
 
 function addBlacklist(userId, guildId) {
-  db.prepare('INSERT OR IGNORE INTO blacklist (user_id, guild_id) VALUES (?, ?)').run(userId, guildId);
+  data.blacklist[`${userId}_${guildId}`] = true;
+  save();
 }
 
 function removeBlacklist(userId, guildId) {
-  db.prepare('DELETE FROM blacklist WHERE user_id = ? AND guild_id = ?').run(userId, guildId);
+  delete data.blacklist[`${userId}_${guildId}`];
+  save();
 }
 
 module.exports = {
-  db,
   getEconomy, addCoins, removeCoins, setLastDaily, getLeaderboardEco,
   getLevel, addXP, setLevel, getLeaderboardXP, xpNeeded,
   addWarning, getWarnings, clearWarnings,
   getConfig, setConfig,
-  isBlacklisted, addBlacklist, removeBlacklist
+  isBlacklisted, addBlacklist, removeBlacklist,
 };
