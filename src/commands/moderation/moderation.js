@@ -242,4 +242,25 @@ module.exports = [
     }
   },
 
+  // ─── SAY ──────────────────────────────────────────────────────────────────
+  {
+    data: new SlashCommandBuilder()
+      .setName('say')
+      .setDescription('Faire parler le bot à votre place')
+      .addStringOption(o => o.setName('message').setDescription('Message à envoyer').setRequired(true))
+      .addChannelOption(o => o.setName('salon').setDescription('Salon cible (défaut : salon actuel)'))
+      .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
+    async execute(interaction) {
+      const message = interaction.options.getString('message');
+      const channel = interaction.options.getChannel('salon') || interaction.channel;
+      try {
+        await interaction.message?.delete().catch(() => {});
+        await channel.send(message);
+        await interaction.reply({ embeds: [successEmbed('Message envoyé', `Message envoyé dans ${channel}.`)], ephemeral: true });
+      } catch {
+        await interaction.reply({ embeds: [errorEmbed('Erreur', 'Impossible d\'envoyer le message dans ce salon.')], ephemeral: true });
+      }
+    }
+  },
+
 ];

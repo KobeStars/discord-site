@@ -156,4 +156,120 @@ module.exports = [
       await interaction.reply({ embeds: [e] });
     }
   },
+
+  // ─── MEME ─────────────────────────────────────────────────────────────────
+  {
+    data: new SlashCommandBuilder()
+      .setName('meme')
+      .setDescription('Afficher un meme aléatoire'),
+    async execute(interaction) {
+      await interaction.deferReply();
+      try {
+        const res = await fetch('https://meme-api.com/gimme');
+        if (!res.ok) throw new Error('API indisponible');
+        const data = await res.json();
+        const { EmbedBuilder } = require('discord.js');
+        const e = new EmbedBuilder()
+          .setTitle(data.title || 'Meme du jour')
+          .setURL(data.postLink || null)
+          .setImage(data.url)
+          .setColor(0xD4537E)
+          .setFooter({ text: `👍 ${data.ups || 0} • r/${data.subreddit || 'memes'}` })
+          .setTimestamp();
+        await interaction.editReply({ embeds: [e] });
+      } catch {
+        const { errorEmbed } = require('../../utils/embeds');
+        await interaction.editReply({ embeds: [errorEmbed('Erreur', 'Impossible de récupérer un meme. Réessaie plus tard.')] });
+      }
+    }
+  },
+
+  // ─── LOVEMETRE ────────────────────────────────────────────────────────────
+  {
+    data: new SlashCommandBuilder()
+      .setName('lovemetre')
+      .setDescription('Calcule la compatibilité entre deux membres')
+      .addUserOption(o => o.setName('membre1').setDescription('Premier membre').setRequired(true))
+      .addUserOption(o => o.setName('membre2').setDescription('Deuxième membre').setRequired(true)),
+    async execute(interaction) {
+      const u1 = interaction.options.getUser('membre1');
+      const u2 = interaction.options.getUser('membre2');
+      // Score fixe basé sur les IDs (reproductible)
+      const combined = BigInt(u1.id) + BigInt(u2.id);
+      const score = Number(combined % 101n);
+      const bar = '█'.repeat(Math.floor(score / 10)) + '░'.repeat(10 - Math.floor(score / 10));
+      let label;
+      if (score >= 90) label = '💞 Âmes sœurs !';
+      else if (score >= 70) label = '❤️ Très compatible !';
+      else if (score >= 50) label = '💛 Compatible';
+      else if (score >= 30) label = '🤝 Amis avant tout';
+      else label = '💔 Pas vraiment...';
+      await interaction.reply({
+        embeds: [funEmbed('Love Mètre 💘', `${u1} ❤️ ${u2}`, [
+          { name: 'Compatibilité', value: `\`[${bar}]\` **${score}%**`, inline: false },
+          { name: 'Verdict', value: label, inline: false },
+        ])]
+      });
+    }
+  },
+
+  // ─── ASCII ────────────────────────────────────────────────────────────────
+  {
+    data: new SlashCommandBuilder()
+      .setName('ascii')
+      .setDescription('Convertir du texte en art ASCII simple')
+      .addStringOption(o => o.setName('texte').setDescription('Texte à convertir (max 10 caractères)').setRequired(true)),
+    async execute(interaction) {
+      const texte = interaction.options.getString('texte').toUpperCase().substring(0, 10);
+      // Fonte ASCII 5 lignes (lettres majuscules + espace)
+      const font = {
+        'A': [' ██ ', '█  █', '████', '█  █', '█  █'],
+        'B': ['███ ', '█  █', '███ ', '█  █', '███ '],
+        'C': [' ███', '█   ', '█   ', '█   ', ' ███'],
+        'D': ['███ ', '█  █', '█  █', '█  █', '███ '],
+        'E': ['████', '█   ', '███ ', '█   ', '████'],
+        'F': ['████', '█   ', '███ ', '█   ', '█   '],
+        'G': [' ███', '█   ', '█ ██', '█  █', ' ███'],
+        'H': ['█  █', '█  █', '████', '█  █', '█  █'],
+        'I': ['███', ' █ ', ' █ ', ' █ ', '███'],
+        'J': ['  █', '  █', '  █', '█ █', ' █ '],
+        'K': ['█  █', '█ █ ', '██  ', '█ █ ', '█  █'],
+        'L': ['█   ', '█   ', '█   ', '█   ', '████'],
+        'M': ['█   █', '██ ██', '█ █ █', '█   █', '█   █'],
+        'N': ['█   █', '██  █', '█ █ █', '█  ██', '█   █'],
+        'O': [' ██ ', '█  █', '█  █', '█  █', ' ██ '],
+        'P': ['███ ', '█  █', '███ ', '█   ', '█   '],
+        'Q': [' ██ ', '█  █', '█  █', '█ ██', ' ███'],
+        'R': ['███ ', '█  █', '███ ', '█ █ ', '█  █'],
+        'S': [' ███', '█   ', ' ██ ', '   █', '███ '],
+        'T': ['████', ' █  ', ' █  ', ' █  ', ' █  '],
+        'U': ['█  █', '█  █', '█  █', '█  █', ' ██ '],
+        'V': ['█   █', '█   █', '█   █', ' █ █ ', '  █  '],
+        'W': ['█   █', '█   █', '█ █ █', '██ ██', '█   █'],
+        'X': ['█   █', ' █ █ ', '  █  ', ' █ █ ', '█   █'],
+        'Y': ['█   █', ' █ █ ', '  █  ', '  █  ', '  █  '],
+        'Z': ['████', '  █ ', ' █  ', '█   ', '████'],
+        ' ': ['  ', '  ', '  ', '  ', '  '],
+        '0': [' ██ ', '█  █', '█  █', '█  █', ' ██ '],
+        '1': [' █ ', '██ ', ' █ ', ' █ ', '███'],
+        '2': [' ██ ', '   █', ' ██ ', '█   ', '████'],
+        '3': ['███ ', '   █', ' ██ ', '   █', '███ '],
+        '!': ['█', '█', '█', ' ', '█'],
+        '?': [' ██ ', '   █', ' ██ ', '    ', '  █ '],
+      };
+      const lines = ['', '', '', '', ''];
+      for (const char of texte) {
+        const glyph = font[char] || font[' '];
+        for (let i = 0; i < 5; i++) {
+          lines[i] += (glyph[i] || '  ') + ' ';
+        }
+      }
+      const result = lines.join('\n');
+      if (result.length > 1900) {
+        return interaction.reply({ embeds: [require('../../utils/embeds').errorEmbed('Trop long', 'Le texte généré est trop grand. Réduis le nombre de caractères.')], ephemeral: true });
+      }
+      await interaction.reply({ embeds: [funEmbed('Art ASCII', `\`\`\`\n${result}\n\`\`\``)] });
+    }
+  },
+
 ];

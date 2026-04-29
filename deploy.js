@@ -8,6 +8,7 @@ const commandModules = [
   require("./src/commands/fun/fun"),
   require("./src/commands/sondages/sondages"),
   require("./src/commands/musique/musique"),
+  require("./src/commands/stats/stats"),
 ];
 
 const commands = [];
